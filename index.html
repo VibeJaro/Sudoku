@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sudoku Seiten Generator</title>
+  <style>
+    :root {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #000;
+      background: #f8f8f8;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+
+    header {
+      background: #111;
+      color: #fff;
+      padding: 1rem 2rem;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.6rem;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      gap: 2rem;
+      padding: 1.5rem 2rem 2rem;
+      box-sizing: border-box;
+    }
+
+    .panel {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      box-sizing: border-box;
+    }
+
+    .controls {
+      width: 320px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .controls fieldset {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 1rem;
+    }
+
+    .controls legend {
+      padding: 0 0.5rem;
+      font-weight: 600;
+    }
+
+    .controls label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .controls input[type="number"],
+    .controls input[type="text"],
+    .controls select {
+      width: 100%;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+    }
+
+    .controls .row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .controls .row label {
+      margin: 0;
+      flex: 1;
+    }
+
+    .controls button {
+      padding: 0.6rem 1rem;
+      border-radius: 4px;
+      border: 1px solid #333;
+      background: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .controls button:hover {
+      background: #eee;
+    }
+
+    .output {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    .page-preview {
+      background: #fff;
+      padding: 1rem;
+      border-radius: 6px;
+      box-shadow: inset 0 0 0 1px #ccc;
+      overflow: auto;
+    }
+
+    .note {
+      font-size: 0.85rem;
+      color: #333;
+    }
+
+    .status-log {
+      font-size: 0.85rem;
+      background: #1a1a1a;
+      color: #8bf;
+      padding: 0.75rem;
+      border-radius: 4px;
+      max-height: 140px;
+      overflow-y: auto;
+      font-family: "Fira Mono", "Courier New", monospace;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 12mm;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+      header, .controls, .status-log {
+        display: none !important;
+      }
+      main {
+        padding: 0;
+      }
+      .page-preview {
+        box-shadow: none;
+        padding: 0;
+      }
+      .page {
+        page-break-after: always;
+      }
+    }
+
+    .pages-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .page {
+      width: 100%;
+      box-sizing: border-box;
+      background: #fff;
+      border: 1px solid #aaa;
+      padding: 12mm;
+      color: #000;
+      font-family: "Noto Sans", Arial, sans-serif;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .page-title {
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .grid-layout-2x2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-auto-rows: 1fr;
+      gap: 12mm;
+    }
+
+    .grid-layout-3x2 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-auto-rows: 1fr;
+      gap: 8mm;
+    }
+
+    .sudoku-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .sudoku-meta {
+      font-size: 0.75rem;
+      text-align: center;
+    }
+
+    .legend {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      text-align: center;
+    }
+
+    svg.sudoku-grid {
+      width: 100%;
+      height: auto;
+    }
+
+    .solution-label {
+      text-align: right;
+      font-size: 0.9rem;
+      margin-top: 0.2rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sudoku Seiten Generator</h1>
+  </header>
+  <main>
+    <aside class="controls panel">
+      <fieldset>
+        <legend>Optionen</legend>
+        <label>Seitenanzahl
+          <input type="number" id="pages-count" min="1" max="12" value="1" />
+        </label>
+        <label>Layout
+          <select id="layout-select">
+            <option value="2x2">2 × 2 (4 Sudokus)</option>
+            <option value="3x2">3 × 2 (6 Sudokus)</option>
+          </select>
+        </label>
+        <label>Schwierigkeit
+          <select id="difficulty-select">
+            <option value="EASY">EASY</option>
+            <option value="MEDIUM">MEDIUM</option>
+          </select>
+        </label>
+        <label>Seed (optional)
+          <input type="text" id="seed-input" placeholder="Seed" />
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend>Wortquelle</legend>
+        <div>
+          <label class="row"><input type="radio" name="word-mode" value="random" checked /> Zufällig</label>
+          <label class="row"><input type="radio" name="word-mode" value="manual" /> Manuell</label>
+        </div>
+        <label>Wort (bei manuell)
+          <input type="text" id="word-input" placeholder="z. B. ABENTEUER" />
+        </label>
+      </fieldset>
+      <div class="row" style="justify-content: space-between;">
+        <button id="generate-btn">Seiten erzeugen</button>
+        <button id="print-btn">Drucken</button>
+      </div>
+      <div class="row" style="justify-content: space-between;">
+        <label class="row" style="gap: 0.4rem; align-items: center;">
+          <input type="checkbox" id="solutions-toggle" /> Lösungen anzeigen
+        </label>
+      </div>
+      <div class="note">
+        Gleicher Seed + Optionen erzeugen identische Seiten. Markierungen formen ein Lösungswort (1→A … 9→I).
+      </div>
+    </aside>
+    <section class="output">
+      <div class="page-preview panel">
+        <div id="pages-container" class="pages-container"></div>
+      </div>
+      <div class="status-log" id="status-log"></div>
+    </section>
+  </main>
+
+  <script>
+  (function(){
+    const Utils = {
+      pad(num, width) {
+        const str = String(num);
+        return str.length >= width ? str : new Array(width - str.length + 1).join('0') + str;
+      },
+      timestamp() {
+        const now = new Date();
+        return `${now.getFullYear()}-${this.pad(now.getMonth() + 1, 2)}-${this.pad(now.getDate(), 2)}-${this.pad(now.getHours(), 2)}${this.pad(now.getMinutes(), 2)}${this.pad(now.getSeconds(), 2)}`;
+      },
+      cloneGrid(grid) {
+        return grid.map(row => row.slice());
+      }
+    };
+
+    const RNG = (() => {
+      function hashString(str) {
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        return h >>> 0;
+      }
+
+      function mulberry32(a) {
+        return function() {
+          let t = a += 0x6D2B79F5;
+          t = Math.imul(t ^ t >>> 15, t | 1);
+          t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+          return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+      }
+
+      function create(seedString) {
+        const seedValue = hashString(seedString || 'seed');
+        const next = mulberry32(seedValue);
+        return {
+          next,
+          randInt(min, max) {
+            return Math.floor(next() * (max - min + 1)) + min;
+          },
+          shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+              const j = Math.floor(next() * (i + 1));
+              [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+          },
+          choice(array) {
+            if (!array.length) return undefined;
+            return array[Math.floor(next() * array.length)];
+          }
+        };
+      }
+
+      return { create };
+    })();
+
+    const SudokuCore = (() => {
+      function createEmptyGrid() {
+        return Array.from({ length: 9 }, () => Array(9).fill(0));
+      }
+
+      function isSafe(grid, row, col, value) {
+        for (let i = 0; i < 9; i++) {
+          if (grid[row][i] === value || grid[i][col] === value) return false;
+        }
+        const boxRow = Math.floor(row / 3) * 3;
+        const boxCol = Math.floor(col / 3) * 3;
+        for (let r = 0; r < 3; r++) {
+          for (let c = 0; c < 3; c++) {
+            if (grid[boxRow + r][boxCol + c] === value) return false;
+          }
+        }
+        return true;
+      }
+
+      function generateFullGrid(rng) {
+        const grid = createEmptyGrid();
+        const cellOrder = [];
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            cellOrder.push({ r, c });
+          }
+        }
+        rng.shuffle(cellOrder);
+
+        function fill(index) {
+          if (index >= cellOrder.length) return true;
+          const { r, c } = cellOrder[index];
+          const digits = rng.shuffle([1,2,3,4,5,6,7,8,9]);
+          for (const digit of digits) {
+            if (isSafe(grid, r, c, digit)) {
+              grid[r][c] = digit;
+              if (fill(index + 1)) return true;
+              grid[r][c] = 0;
+            }
+          }
+          return false;
+        }
+
+        const success = fill(0);
+        if (!success) {
+          throw new Error('Konnte kein vollständiges Sudoku erzeugen');
+        }
+        return grid;
+      }
+
+      function cloneGrid(grid) {
+        return grid.map(row => row.slice());
+      }
+
+      function countGivens(grid) {
+        let count = 0;
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            if (grid[r][c]) count++;
+          }
+        }
+        return count;
+      }
+
+      function solveSingles(givenGrid) {
+        const grid = cloneGrid(givenGrid);
+        const candidates = Array.from({ length: 9 }, () => Array(9).fill(null));
+        let progress = true;
+        let steps = 0;
+        while (progress) {
+          progress = false;
+          for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+              if (grid[r][c]) continue;
+              const cand = [];
+              for (let digit = 1; digit <= 9; digit++) {
+                if (isSafe(grid, r, c, digit)) cand.push(digit);
+              }
+              candidates[r][c] = cand;
+              if (!cand.length) {
+                return { solved: false, grid, reason: 'Keine Kandidaten' };
+              }
+            }
+          }
+
+          // Naked singles
+          for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+              if (grid[r][c]) continue;
+              const cand = candidates[r][c];
+              if (cand.length === 1) {
+                grid[r][c] = cand[0];
+                candidates[r][c] = null;
+                progress = true;
+                steps++;
+              }
+            }
+          }
+
+          if (progress) continue;
+
+          // Hidden singles
+          const units = [];
+          for (let i = 0; i < 9; i++) {
+            units.push({ type: 'row', index: i, cells: Array.from({ length: 9 }, (_, c) => [i, c]) });
+            units.push({ type: 'col', index: i, cells: Array.from({ length: 9 }, (_, r) => [r, i]) });
+          }
+          for (let br = 0; br < 3; br++) {
+            for (let bc = 0; bc < 3; bc++) {
+              const cells = [];
+              for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                  cells.push([br*3 + r, bc*3 + c]);
+                }
+              }
+              units.push({ type: 'box', index: br*3 + bc, cells });
+            }
+          }
+
+          for (const unit of units) {
+            const digitMap = new Map();
+            for (const [r, c] of unit.cells) {
+              if (grid[r][c]) continue;
+              const cand = candidates[r][c] || [];
+              for (const digit of cand) {
+                if (!digitMap.has(digit)) digitMap.set(digit, []);
+                digitMap.get(digit).push([r, c]);
+              }
+            }
+            for (const [digit, cells] of digitMap.entries()) {
+              if (cells.length === 1) {
+                const [r, c] = cells[0];
+                grid[r][c] = digit;
+                candidates[r][c] = null;
+                progress = true;
+                steps++;
+              }
+            }
+          }
+        }
+
+        const solved = grid.every(row => row.every(cell => cell));
+        return { solved, grid, steps };
+      }
+
+      return {
+        generateFullGrid,
+        cloneGrid,
+        solveSingles,
+        countGivens
+      };
+    })();
+
+    const Difficulty = (() => {
+      const TARGETS = {
+        EASY: { minGivens: 36 },
+        MEDIUM: { minGivens: 30 }
+      };
+
+      function requirements(level) {
+        return TARGETS[level] || TARGETS.EASY;
+      }
+
+      function meetsLevel(level, givenGrid) {
+        const { minGivens } = requirements(level);
+        const givens = SudokuCore.countGivens(givenGrid);
+        if (givens < minGivens) return false;
+        const solved = SudokuCore.solveSingles(givenGrid);
+        return solved.solved;
+      }
+
+      return {
+        requirements,
+        meetsLevel
+      };
+    })();
+
+    const WordEngine = (() => {
+      const WORDS = [
+        'ABENTEUER', 'ZAUBEREI', 'FREUNDSCHAFT', 'SCHMETTER', 'SCHATZKISTE',
+        'LICHTBLICK', 'NEUGIERDE', 'FANTASIE', 'MONDGESANG', 'SOMMERSONNE',
+        'ZAUBERHUT', 'ABENTEUERLUST', 'SONNENBLUME', 'WUNDERLAND'
+      ];
+
+      function numberToLetter(num) {
+        const letters = 'ABCDEFGHI';
+        return letters[num - 1] || '?';
+      }
+
+      function pickWord(mode, manualWord, totalMarks, rng) {
+        if (mode === 'manual') {
+          const cleaned = (manualWord || '').replace(/[^A-ZÄÖÜ]/gi, '').toUpperCase();
+          return cleaned;
+        }
+        const filtered = WORDS.filter(word => word.length >= Math.floor(totalMarks * 0.8) && word.length <= Math.ceil(totalMarks * 1.2));
+        const list = filtered.length ? filtered : WORDS;
+        return rng.choice(list).toUpperCase();
+      }
+
+      function assignMarkCounts(puzzleCount, desiredLength) {
+        const counts = Array(puzzleCount).fill(2);
+        let total = counts.reduce((a, b) => a + b, 0);
+        if (!desiredLength || desiredLength < 2 * puzzleCount || desiredLength > 4 * puzzleCount) {
+          return counts;
+        }
+        let idx = 0;
+        while (total < desiredLength) {
+          if (counts[idx] < 4) {
+            counts[idx]++;
+            total++;
+          }
+          idx = (idx + 1) % puzzleCount;
+        }
+        idx = 0;
+        while (total > desiredLength) {
+          if (counts[idx] > 2) {
+            counts[idx]--;
+            total--;
+          }
+          idx = (idx + 1) % puzzleCount;
+        }
+        return counts;
+      }
+
+      function selectMarks(puzzle, count, rng) {
+        const candidates = [];
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            if (!puzzle.given[r][c]) {
+              candidates.push({ r, c, box: Math.floor(r / 3) * 3 + Math.floor(c / 3) });
+            }
+          }
+        }
+        if (!candidates.length) return [];
+        rng.shuffle(candidates);
+        const marks = [];
+        const usedBoxes = new Set();
+        for (const cell of candidates) {
+          if (marks.length >= count) break;
+          if (!usedBoxes.has(cell.box)) {
+            marks.push({ r: cell.r, c: cell.c });
+            usedBoxes.add(cell.box);
+          }
+        }
+        if (marks.length < count) {
+          for (const cell of candidates) {
+            if (marks.length >= count) break;
+            if (!marks.some(m => m.r === cell.r && m.c === cell.c)) {
+              marks.push({ r: cell.r, c: cell.c });
+            }
+          }
+        }
+        return marks.slice(0, count);
+      }
+
+      return {
+        numberToLetter,
+        pickWord,
+        assignMarkCounts,
+        selectMarks
+      };
+    })();
+
+    const Layout = (() => {
+      function renderGridSVG(puzzle, options = {}) {
+        const { showSolution = false, marks = [] } = options;
+        const size = options.layout === '3x2' ? 150 : 200;
+        const cellSize = size / 9;
+        const thick = 1.2;
+        const thin = 0.4;
+        const fontSize = options.layout === '3x2' ? 10 : 12;
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('class', 'sudoku-grid');
+        svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+        svg.setAttribute('width', size);
+        svg.setAttribute('height', size);
+
+        for (let i = 0; i <= 9; i++) {
+          const lineH = document.createElementNS(svgNS, 'line');
+          lineH.setAttribute('x1', '0');
+          lineH.setAttribute('y1', i * cellSize);
+          lineH.setAttribute('x2', size);
+          lineH.setAttribute('y2', i * cellSize);
+          lineH.setAttribute('stroke', '#000');
+          lineH.setAttribute('stroke-width', (i % 3 === 0) ? thick : thin);
+          svg.appendChild(lineH);
+
+          const lineV = document.createElementNS(svgNS, 'line');
+          lineV.setAttribute('x1', i * cellSize);
+          lineV.setAttribute('y1', '0');
+          lineV.setAttribute('x2', i * cellSize);
+          lineV.setAttribute('y2', size);
+          lineV.setAttribute('stroke', '#000');
+          lineV.setAttribute('stroke-width', (i % 3 === 0) ? thick : thin);
+          svg.appendChild(lineV);
+        }
+
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            const value = showSolution ? puzzle.solution[r][c] : puzzle.given[r][c];
+            if (value) {
+              const text = document.createElementNS(svgNS, 'text');
+              text.setAttribute('x', (c + 0.5) * cellSize);
+              text.setAttribute('y', (r + 0.68) * cellSize);
+              text.setAttribute('text-anchor', 'middle');
+              text.setAttribute('font-size', fontSize);
+              text.setAttribute('font-family', 'Noto Sans, Arial, sans-serif');
+              text.textContent = value;
+              svg.appendChild(text);
+            }
+          }
+        }
+
+        for (const mark of marks) {
+          const circle = document.createElementNS(svgNS, 'circle');
+          circle.setAttribute('cx', (mark.c + 0.2) * cellSize);
+          circle.setAttribute('cy', (mark.r + 0.2) * cellSize);
+          circle.setAttribute('r', cellSize * 0.12);
+          circle.setAttribute('fill', 'none');
+          circle.setAttribute('stroke', '#000');
+          circle.setAttribute('stroke-width', 0.35);
+          svg.appendChild(circle);
+        }
+
+        return svg;
+      }
+
+      function renderPage(page, index, options = {}) {
+        const section = document.createElement('section');
+        section.className = 'page';
+        const header = document.createElement('div');
+        header.className = 'page-header';
+        const title = document.createElement('div');
+        title.className = 'page-title';
+        title.textContent = `Elisas Sudoku – Seite ${index + 1}`;
+        const meta = document.createElement('div');
+        meta.textContent = `Seed ${page.seed} · Layout ${page.layout} · ${page.difficulty}`;
+        header.appendChild(title);
+        header.appendChild(meta);
+        section.appendChild(header);
+
+        const layoutClass = page.layout === '3x2' ? 'grid-layout-3x2' : 'grid-layout-2x2';
+        const gridContainer = document.createElement('div');
+        gridContainer.className = layoutClass;
+        section.appendChild(gridContainer);
+
+        page.letterOrder.length = 0;
+        const showSolution = options.showSolution || false;
+
+        page.puzzles.forEach((puzzle, puzzleIndex) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'sudoku-wrapper';
+          puzzle.marks.forEach((m, orderIndex) => {
+            const letter = WordEngine.numberToLetter(puzzle.solution[m.r][m.c]);
+            page.letterOrder.push({ pageIndex: index, puzzleIndex, order: orderIndex, letter });
+          });
+          const svg = renderGridSVG(puzzle, {
+            layout: page.layout,
+            marks: puzzle.marks,
+            showSolution
+          });
+          wrapper.appendChild(svg);
+          const meta = document.createElement('div');
+          meta.className = 'sudoku-meta';
+          if (!showSolution) {
+            meta.textContent = `${puzzle.marks.length} Markierungen`;
+          } else {
+            meta.textContent = 'Lösung';
+          }
+          wrapper.appendChild(meta);
+          gridContainer.appendChild(wrapper);
+        });
+
+        const legend = document.createElement('div');
+        legend.className = 'legend';
+        legend.textContent = 'Mapping 1→A · 2→B · 3→C · 4→D · 5→E · 6→F · 7→G · 8→H · 9→I';
+        section.appendChild(legend);
+
+        if (!showSolution) {
+          const wordDisplay = document.createElement('div');
+          wordDisplay.className = 'legend';
+          wordDisplay.textContent = `Gelesenes Wort: ${page.finalWord || '—'}`;
+          section.appendChild(wordDisplay);
+          if (page.targetWord) {
+            const targetDisplay = document.createElement('div');
+            targetDisplay.className = 'legend';
+            targetDisplay.textContent = `Zielwort: ${page.targetWord}`;
+            section.appendChild(targetDisplay);
+          }
+        }
+
+        if (showSolution) {
+          const label = document.createElement('div');
+          label.className = 'solution-label';
+          label.textContent = 'Lösungen';
+          section.insertBefore(label, gridContainer);
+        }
+
+        return section;
+      }
+
+      return {
+        renderPage
+      };
+    })();
+
+    const PuzzleBuilder = (() => {
+      function generatePuzzle(rng, difficulty, statusLog, attempt = 0) {
+        const solution = SudokuCore.generateFullGrid(rng);
+        const given = SudokuCore.cloneGrid(solution);
+        const cells = [];
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            cells.push({ r, c });
+          }
+        }
+        rng.shuffle(cells);
+
+        const { minGivens } = Difficulty.requirements(difficulty);
+        for (const cell of cells) {
+          if (SudokuCore.countGivens(given) <= minGivens) break;
+          const backup = given[cell.r][cell.c];
+          given[cell.r][cell.c] = 0;
+          const result = SudokuCore.solveSingles(given);
+          if (!result.solved) {
+            given[cell.r][cell.c] = backup;
+          }
+        }
+
+        const result = SudokuCore.solveSingles(given);
+        if (!result.solved) {
+          if (attempt >= 15) {
+            statusLog.push('Warnung: Verwende vollständiges Sudoku als Fallback.');
+            return {
+              solution,
+              given: SudokuCore.cloneGrid(solution),
+              difficulty,
+              marks: []
+            };
+          }
+          statusLog.push('Hinweis: Wiederhole Generierung (Solver festgefahren).');
+          return generatePuzzle(rng, difficulty, statusLog, attempt + 1);
+        }
+
+        return {
+          solution,
+          given,
+          difficulty,
+          marks: []
+        };
+      }
+
+      return { generatePuzzle };
+    })();
+
+    const App = (() => {
+      const elements = {
+        pagesCount: document.getElementById('pages-count'),
+        layoutSelect: document.getElementById('layout-select'),
+        difficultySelect: document.getElementById('difficulty-select'),
+        seedInput: document.getElementById('seed-input'),
+        wordInputs: document.querySelectorAll('input[name="word-mode"]'),
+        wordInput: document.getElementById('word-input'),
+        generateBtn: document.getElementById('generate-btn'),
+        printBtn: document.getElementById('print-btn'),
+        solutionsToggle: document.getElementById('solutions-toggle'),
+        pagesContainer: document.getElementById('pages-container'),
+        statusLog: document.getElementById('status-log')
+      };
+
+      const state = {
+        pages: [],
+        options: {},
+        showSolutions: false
+      };
+
+      function log(message) {
+        const now = new Date().toLocaleTimeString();
+        elements.statusLog.textContent += `[${now}] ${message}\n`;
+        elements.statusLog.scrollTop = elements.statusLog.scrollHeight;
+      }
+
+      function clearLog() {
+        elements.statusLog.textContent = '';
+      }
+
+      function getOptions() {
+        const wordMode = Array.from(elements.wordInputs).find(r => r.checked)?.value || 'random';
+        const wordRaw = elements.wordInput.value || '';
+        const sanitizedWord = wordRaw.replace(/[^A-ZÄÖÜa-zäöüß]/g, '').toUpperCase().replace(/Ä/g, 'AE').replace(/Ö/g, 'OE').replace(/Ü/g, 'UE').replace(/ß/g, 'SS');
+        return {
+          pages: Math.max(1, Math.min(12, parseInt(elements.pagesCount.value, 10) || 1)),
+          layout: elements.layoutSelect.value,
+          difficulty: elements.difficultySelect.value,
+          seed: elements.seedInput.value.trim() || `Seed-${Utils.timestamp()}`,
+          wordMode,
+          word: sanitizedWord
+        };
+      }
+
+      function generatePages(options) {
+        clearLog();
+        log(`Starte Generation mit Seed "${options.seed}"`);
+        const rng = RNG.create(options.seed);
+        const pages = [];
+        for (let pageIndex = 0; pageIndex < options.pages; pageIndex++) {
+          log(`Erzeuge Seite ${pageIndex + 1}`);
+          const puzzles = [];
+          const perPage = options.layout === '3x2' ? 6 : 4;
+          const targetWord = options.wordMode === 'manual'
+            ? options.word
+            : WordEngine.pickWord('random', '', perPage * 3, rng);
+          const statusNotes = [];
+          for (let i = 0; i < perPage; i++) {
+            const puzzle = PuzzleBuilder.generatePuzzle(rng, options.difficulty, statusNotes);
+            puzzles.push(puzzle);
+          }
+          statusNotes.forEach(note => log(note));
+          const counts = WordEngine.assignMarkCounts(perPage, targetWord.length);
+          const marksLetters = [];
+          puzzles.forEach((puzzle, idx) => {
+            const markCount = counts[idx];
+            const marks = WordEngine.selectMarks(puzzle, markCount, rng);
+            puzzle.marks = marks;
+            marks.forEach(mark => {
+              const letter = WordEngine.numberToLetter(puzzle.solution[mark.r][mark.c]);
+              marksLetters.push(letter);
+            });
+          });
+
+          let finalWord = marksLetters.join('');
+          if (targetWord && targetWord !== finalWord) {
+            log(`Hinweis: Markierungen ergeben "${finalWord}" (abweichend vom Zielwort "${targetWord}").`);
+          }
+
+          const page = {
+            puzzles,
+            layout: options.layout,
+            seed: options.seed,
+            difficulty: options.difficulty,
+            finalWord,
+            targetWord,
+            letterOrder: []
+          };
+          pages.push(page);
+        }
+        state.pages = pages;
+        state.options = options;
+        render();
+      }
+
+      function render() {
+        elements.pagesContainer.innerHTML = '';
+        if (!state.pages.length) return;
+        const fragment = document.createDocumentFragment();
+        state.pages.forEach((page, index) => {
+          const pageNode = Layout.renderPage(page, index, { showSolution: false });
+          fragment.appendChild(pageNode);
+        });
+        if (state.showSolutions) {
+          state.pages.forEach((page, index) => {
+            const solutionNode = Layout.renderPage(page, index, { showSolution: true });
+            fragment.appendChild(solutionNode);
+          });
+        }
+        elements.pagesContainer.appendChild(fragment);
+      }
+
+      function bindEvents() {
+        elements.generateBtn.addEventListener('click', () => {
+          const options = getOptions();
+          if (options.wordMode === 'manual') {
+            const perPage = options.layout === '3x2' ? 6 : 4;
+            const minLen = 2 * perPage;
+            const maxLen = 4 * perPage;
+            if (options.word.length < minLen || options.word.length > maxLen) {
+              alert(`Bitte ein Wort mit ${minLen} bis ${maxLen} Buchstaben eingeben.`);
+              return;
+            }
+          }
+          generatePages(options);
+        });
+
+        elements.printBtn.addEventListener('click', () => {
+          window.print();
+        });
+
+        elements.solutionsToggle.addEventListener('change', () => {
+          state.showSolutions = elements.solutionsToggle.checked;
+          render();
+        });
+      }
+
+      function init() {
+        bindEvents();
+        const options = getOptions();
+        generatePages(options);
+      }
+
+      return { init };
+    })();
+
+    document.addEventListener('DOMContentLoaded', App.init);
+  })();
+  </script>
+</body>
+</html>
