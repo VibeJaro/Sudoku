@@ -859,24 +859,33 @@
       }
 
       function generatePages(options) {
+        console.log('generatePages: start', options);
         clearLog();
+        console.log('generatePages: log cleared');
         log(`Starte Generation mit Seed "${options.seed}"`);
+        console.log(`generatePages: Seed ${options.seed}`);
         const rng = RNG.create(options.seed);
+        console.log('generatePages: RNG created');
         const pages = [];
         for (let pageIndex = 0; pageIndex < options.pages; pageIndex++) {
           log(`Erzeuge Seite ${pageIndex + 1}`);
+          console.log(`generatePages: creating page ${pageIndex + 1}`);
           const puzzles = [];
           const perPage = options.layout === '3x2' ? 6 : 4;
           const targetWord = options.wordMode === 'manual'
             ? options.word
             : WordEngine.pickWord('random', '', perPage * 3, rng);
+          console.log(`generatePages: target word for page ${pageIndex + 1}`, targetWord);
           const statusNotes = [];
           for (let i = 0; i < perPage; i++) {
             const puzzle = PuzzleBuilder.generatePuzzle(rng, options.difficulty, statusNotes);
             puzzles.push(puzzle);
           }
+          console.log(`generatePages: generated ${puzzles.length} puzzles for page ${pageIndex + 1}`);
           statusNotes.forEach(note => log(note));
+          console.log(`generatePages: logged ${statusNotes.length} status notes for page ${pageIndex + 1}`);
           const counts = WordEngine.assignMarkCounts(perPage, targetWord.length);
+          console.log(`generatePages: assigned mark counts for page ${pageIndex + 1}`, counts);
           const marksLetters = [];
           puzzles.forEach((puzzle, idx) => {
             const markCount = counts[idx];
@@ -887,10 +896,12 @@
               marksLetters.push(letter);
             });
           });
+          console.log(`generatePages: collected ${marksLetters.length} marks letters for page ${pageIndex + 1}`);
 
           let finalWord = marksLetters.join('');
           if (targetWord && targetWord !== finalWord) {
             log(`Hinweis: Markierungen ergeben "${finalWord}" (abweichend vom Zielwort "${targetWord}").`);
+            console.log(`generatePages: Hinweis - finale Buchstabenfolge ${finalWord} unterscheidet sich vom Zielwort ${targetWord}`);
           }
 
           const page = {
@@ -903,10 +914,13 @@
             letterOrder: []
           };
           pages.push(page);
+          console.log(`generatePages: page ${pageIndex + 1} added to collection`);
         }
         state.pages = pages;
         state.options = options;
+        console.log('generatePages: state updated', { pages: state.pages.length, options: state.options });
         render();
+        console.log('generatePages: render complete');
       }
 
       function render() {
@@ -938,7 +952,12 @@
               return;
             }
           }
-          generatePages(options);
+          try {
+            generatePages(options);
+          } catch (err) {
+            console.error(err);
+            log('Fehler: ' + err.message);
+          }
         });
 
         elements.printBtn.addEventListener('click', () => {
@@ -952,9 +971,15 @@
       }
 
       function init() {
+        console.log('Init start');
         bindEvents();
         const options = getOptions();
-        generatePages(options);
+        try {
+          generatePages(options);
+        } catch (err) {
+          console.error(err);
+          log('Fehler: ' + err.message);
+        }
       }
 
       return { init };
